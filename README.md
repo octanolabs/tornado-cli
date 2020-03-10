@@ -1,6 +1,10 @@
+# Tornado-cli for Ubiq
+
+Tornado Cash CLI for Ubiq Mainnet.
+
 # Tornado Cash Privacy Solution [![Build Status](https://travis-ci.org/tornadocash/tornado-core.svg?branch=master)](https://travis-ci.org/tornadocash/tornado-core)
 
-Tornado Cash is a non-custodial Ethereum and ERC20 privacy solution based on zkSNARKs. It improves transaction privacy by breaking the on-chain link between recipient and destination addresses. It uses a smart contract that accepts ETH deposits that can be withdrawn by a different address. Whenever ETH is withdrawn by the new address, there is no way to link the withdrawal to the deposit, ensuring complete privacy.
+Tornado Cash is a non-custodial Ethereum and ERC20 privacy solution based on zkSNARKs. It improves transaction privacy by breaking the on-chain link between recipient and destination addresses. It uses a smart contract that accepts UBQ deposits that can be withdrawn by a different address. Whenever UBQ is withdrawn by the new address, there is no way to link the withdrawal to the deposit, ensuring complete privacy.
 
 To make a deposit user generates a secret and sends its hash (called a commitment) along with the deposit amount to the Tornado smart contract. The contract accepts the deposit and adds the commitment to its list of deposits.
 
@@ -41,49 +45,20 @@ Underlying circomlib dependency is currently being audited, and the team already
 You can see example usage in cli.js, it works both in console and in browser.
 
 1. `npm install`
-1. `cp .env.example .env`
-1. `npm run build` - this may take 10 minutes or more
-1. `npx ganache-cli`
-1. `npm run test` - optionally runs tests. It may fail on the first try, just run it again.
-
-Use browser version on Kovan:
-
-1. `vi .env` - add your Kovan private key to deploy contracts
-1. `npm run migrate`
-1. `npx http-server` - serve current dir, you can use any other static http server
-1. Open `localhost:8080`
-
-Use with command line version. Works for Ganache, Kovan and Mainnet:
-### Initialization
-1. `cp .env.example .env`
-1. `npm run download`
-1. `npm run build:contract`
-
-### Ganache
-1. make sure you complete steps from Initialization
-1. `ganache-cli -i 1337`
-1. `npm run migrate:dev`
-1. `./cli.js test`
-1. `./cli.js --help`
-
-### Kovan, Mainnet
-1. make sure you complete steps from Initialization
-1. Add `PRIVATE_KEY` to `.env` file
-1. `./cli.js --help`
 
 Example:
 ```bash
-./cli.js deposit ETH 0.1 --rpc https://kovan.infura.io/v3/27a9649f826b4e31a83e07ae09a87448
+./tornado.js deposit
 ```
 > Your note: tornado-eth-0.1-42-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652
-> Tornado ETH balance is 8.9
-> Sender account ETH balance is 1004873.470619891361352542
+> Tornado UBQ balance is 8.9
+> Sender account UBQ balance is 1004873.470619891361352542
 > Submitting deposit transaction
-> Tornado ETH balance is 9
-> Sender account ETH balance is 1004873.361652048361352542
+> Tornado UBQ balance is 9
+> Sender account UBQ balance is 1004873.361652048361352542
 
 ```bash
-./cli.js withdraw tornado-eth-0.1-42-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16 --rpc https://kovan.infura.io/v3/27a9649f826b4e31a83e07ae09a87448 --relayer https://kovan-frelay.duckdns.org
+./tornado.js withdraw 0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16
 ```
 
 > Relay address:  0x6A31736e7490AbE5D5676be059DFf064AB4aC754
@@ -95,30 +70,7 @@ Example:
 > Transaction mined in block 17036120
 > Done
 
-
-## Deploy ETH Tornado Cash
-1. `cp .env.example .env`
-1. Tune all necessary params
-1. `npx truffle migrate --network kovan --reset --f 2 --to 4`
-
-## Deploy ERC20 Tornado Cash
-1. `cp .env.example .env`
-1. Tune all necessary params
-1. `npx truffle migrate --network kovan --reset --f 2 --to 3`
-1. `npx truffle migrate --network kovan --reset --f 5`
-
-**Note**. If you want to reuse the same verifier for all the instances, then after you deployed one of the instances you should only run 4th or 5th migration for ETH or ERC20 contracts respectively (`--f 4 --to 4` or `--f 5`).
-
 ## Credits
 
 Special thanks to @barryWhiteHat and @kobigurk for valuable input,
 and to @jbaylina for awesome [Circom](https://github.com/iden3/circom) & [Websnark](https://github.com/iden3/websnark) framework
-
-## Minimal demo example
-1. `npm i`
-1. `ganache-cli -d`
-1. `npm run downloadKeys`
-1. `npm build:contract`
-1. `cp .env.example .env`
-1. `npm run migrate:dev`
-1. `node minimal-demo.js`
