@@ -46,9 +46,47 @@ You can see example usage in cli.js, it works both in console and in browser.
 
 1. `npm install`
 
+Usage:
+```bash
+tornado-cli
+
+  Submit a deposit and return the resulting note
+
+  $ ./tornado.js --deposit --from <address> --pool 1
+  $ ./tornado.js -dp 1
+
+  Withdraw a note to 'recipient' account
+
+  $ ./tornado.js --withdraw <note> --to <recipient> --relay [relayUrl]
+  $ ./tornado.js -w <note> -t <recipient>
+
+  Check address balance
+
+  $ ./tornado.js -b <address>
+
+
+Commands
+
+  -d, --deposit           Submit a deposit and return the resulting note
+  -w, --withdraw note     Withdraw a note to 'recipient' account
+  -b, --balance address   Check address balance
+  -P, --pools             List available pools
+  -h, --help              Print this usage guide.
+
+Options
+
+  -f, --from address   From address (default: eth.accounts[0])
+  -p, --pool id        Pool to use (default: 1)
+
+Withdraw Options
+
+  -t, --to address   Recipient for withdraw
+  -r, --relay url    Relay to use for withdraw
+```
+
 Example:
 ```bash
-./tornado.js deposit
+./tornado.js --deposit
 ```
 > Your note: tornado-eth-0.1-42-0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652
 > Tornado UBQ balance is 8.9
@@ -58,7 +96,7 @@ Example:
 > Sender account UBQ balance is 1004873.361652048361352542
 
 ```bash
-./tornado.js withdraw 0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 0x8589427373D6D84E98730D7795D8f6f8731FDA16
+./tornado.js --withdraw 0xf73dd6833ccbcc046c44228c8e2aa312bf49e08389dadc7c65e6a73239867b7ef49c705c4db227e2fadd8489a494b6880bdcb6016047e019d1abec1c7652 --to 0x8589427373D6D84E98730D7795D8f6f8731FDA16
 ```
 
 > Relay address:  0x6A31736e7490AbE5D5676be059DFf064AB4aC754

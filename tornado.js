@@ -9,17 +9,15 @@ const crypto = require('crypto')
 const circomlib = require('circomlib')
 const bigInt = snarkjs.bigInt
 const merkleTree = require('./lib/MerkleTree')
+const params = require('./lib/Params')
 const Web3 = require('web3')
 const buildGroth16 = require('websnark/src/groth16')
 const websnarkUtils = require('websnark/src/utils')
 const { toWei, fromWei } = require('web3-utils')
 
-let web3, tornado, circuit, proving_key, groth16, senderAccount
+let web3, tornado, circuit, proving_key, groth16, senderAccount, ubqAmount
+const options = params.options()
 const MERKLE_TREE_HEIGHT = 20
-const ETH_AMOUNT = 8e18
-
-/** Whether we are in a browser or node.js */
-const inBrowser = (typeof window !== 'undefined')
 
 /** Generate random number of specified byte length */
 const rbigint = nbytes => snarkjs.bigInt.leBuff2int(crypto.randomBytes(nbytes))
@@ -35,7 +33,7 @@ function toHex(number, length = 32) {
 
 /** Display account balance */
 async function printBalance(account, name) {
-  console.log(`${name} UBQ balance is`, web3.utils.fromWei(await web3.eth.getBalance(account)))
+  console.log(`${name} balance is`, web3.utils.fromWei(await web3.eth.getBalance(account)), `UBQ`)
 }
 
 /**
@@ -54,10 +52,9 @@ function createDeposit(nullifier, secret) {
  */
 async function deposit() {
   const deposit = createDeposit(rbigint(31), rbigint(31))
-
-  console.log('Submitting deposit transaction')
-  console.log('Waiting for inclusion in block')
-  await tornado.methods.deposit(toHex(deposit.commitment)).send({ value: ETH_AMOUNT, from: senderAccount, gas:2e6 })
+  console.log('Submitting deposit transaction to Pool ' + options.pool + ' (' + fromWei(ubqAmount.toString()) + ' UBQ)')
+  console.log('Waiting for inclusion in next block')
+  await tornado.methods.deposit(toHex(deposit.commitment)).send({ value: ubqAmount, from: senderAccount, gas:2e6 })
 
   const note = toHex(deposit.preimage, 62)
   console.log('Your note:', note)
@@ -156,7 +153,7 @@ async function withdraw(note, recipient) {
   const { proof, args } = await generateProof(tornado, note, recipient)
 
   console.log('Submitting withdraw transaction')
-  console.log('Waiting for inclusion in block')
+  console.log('Waiting for inclusion in next block')
   await tornado.methods.withdraw(proof, ...args).send({ from: senderAccount, gas: 1e6 })
   console.log('Done')
 }
@@ -209,33 +206,64 @@ function waitForTxReceipt(txHash, attempts = 60, delay = 1000) {
   })
 }
 
+const POOLS = new Map([
+  [
+    1,
+    {
+      denomination: 8e18,
+      contract: "0x5f0c5a6F699772b0E1d78ac00Af40174bFef8623",
+      deployedTxid: "0x3aff57fb32f6b7ec17304f3c352000bb9d522d54f6fdfbec55d2f469c1a39181"
+    }
+  ]/*,
+  [
+    2,
+    {
+      denomination: 88e18,
+      contract: "0x5f0c5a6F699772b0E1d78ac00Af40174bFef8623",
+      deployedTxid: "0x3aff57fb32f6b7ec17304f3c352000bb9d522d54f6fdfbec55d2f469c1a39181"
+    }
+  ],
+  [
+    3,
+    {
+      denomination: 888e18,
+      contract: "0x5f0c5a6F699772b0E1d78ac00Af40174bFef8623",
+      deployedTxid: "0x3aff57fb32f6b7ec17304f3c352000bb9d522d54f6fdfbec55d2f469c1a39181"
+    }
+  ],*/
+])
+
 /**
  * Init web3, contracts, and snark
  */
 async function init() {
   let contractJson
-  if (inBrowser) {
-    // Initialize using injected web3 (Metamask)
-    // To assemble web version run `npm run browserify`
-    web3 = new Web3(window.web3.currentProvider, null, { transactionConfirmationBlocks: 1 })
-    contractJson = await (await fetch('contracts/ETHTornado.json')).json()
-    circuit = await (await fetch('circuits/withdraw.json')).json()
-    proving_key = await (await fetch('circuits/withdraw_proving_key.bin')).arrayBuffer()
-  } else {
-    // Initialize from local node
-    web3 = new Web3('http://localhost:8588', null, { transactionConfirmationBlocks: 1 })
-    contractJson = require('./contracts/ETHTornado.json')
-    circuit = require('./circuits/withdraw.json')
-    proving_key = fs.readFileSync('circuits/withdraw_proving_key.bin').buffer
-    require('dotenv').config()
-  }
+  // Initialize from local node
+  web3 = new Web3('http://localhost:8588', null, { transactionConfirmationBlocks: 1 })
+  contractJson = require('./contracts/ETHTornado.json')
+  circuit = require('./circuits/withdraw.json')
+  proving_key = fs.readFileSync('circuits/withdraw_proving_key.bin').buffer
+
   groth16 = await buildGroth16()
 
-  const tx = await web3.eth.getTransaction("0x3aff57fb32f6b7ec17304f3c352000bb9d522d54f6fdfbec55d2f469c1a39181")
-  tornado = new web3.eth.Contract(contractJson.abi, "0x5f0c5a6F699772b0E1d78ac00Af40174bFef8623")
-  tornado.deployedBlock = tx.blockNumber
+  // set pool from args or abort
+  if (POOLS.has(options.pool)) {
+    const pool = POOLS.get(options.pool)
+    const tx = await web3.eth.getTransaction(pool.deployedTxid)
+    tornado = new web3.eth.Contract(contractJson.abi, pool.contract)
+    tornado.deployedBlock = tx.blockNumber
+    ubqAmount = pool.denomination
+  } else {
+    printHelp(1)
+  }
 
-  senderAccount = (await web3.eth.getAccounts())[0]
+  // set sender/from account or fallback to eth.accounts[0]
+  if (options.from) {
+    senderAccount = options.from
+  } else {
+    senderAccount = (await web3.eth.getAccounts())[0]
+  }
+
   console.log('Loaded')
 }
 
@@ -243,103 +271,54 @@ async function init() {
 
 /** Print command line help */
 function printHelp(code = 0) {
-  console.log(`Usage:
-  Submit a deposit from default UBQ account and return the resulting note
-  $ ./tornado.js deposit
-
-  Withdraw a note to 'recipient' account
-  $ ./tornado.js withdraw <note> <recipient> [relayUrl]
-
-  Check address balance
-  $ ./tornado.js balance <address>
-
-Example:
-  $ ./tornado.js deposit
-  ...
-  Your note: 0x1941fa999e2b4bfeec3ce53c2440c3bc991b1b84c9bb650ea19f8331baf621001e696487e2a2ee54541fa12f49498d71e24d00b1731a8ccd4f5f5126f3d9f400
-
-  $ ./tornado.js withdraw 0x1941fa999e2b4bfeec3ce53c2440c3bc991b1b84c9bb650ea19f8331baf621001e696487e2a2ee54541fa12f49498d71e24d00b1731a8ccd4f5f5126f3d9f400 0xee6249BA80596A4890D1BD84dbf5E4322eA4E7f0
-`)
+  console.log(params.usage())
   process.exit(code)
+}
+
+/** Print available tornado pools */
+function printPools() {
+  for (var [id, pool] of POOLS) {
+    console.log(id + ' : ' + fromWei(pool.denomination.toString()) + ' UBQ')
+  }
+  process.exit(0)
 }
 
 /** Process command line args and run */
 async function runConsole(args) {
-  if (args.length === 0) {
-    printHelp()
-  } else {
-    switch (args[0]) {
-    case 'deposit':
-      if (args.length === 1) {
-        await init()
-        await printBalance(tornado._address, 'Tornado')
-        await printBalance(senderAccount, 'Sender account')
-        await deposit()
-        await printBalance(tornado._address, 'Tornado')
-        await printBalance(senderAccount, 'Sender account')
+  if (options.balance) {
+    await init()
+    await printBalance(options.balance)
+    process.exit(0)
+  } else if (options.pools) {
+    await printPools()
+  } else if (options.deposit && !options.withdraw) {
+    await init()
+    await printBalance(tornado._address, 'Tornado Pool ' + options.pool)
+    await printBalance(senderAccount, 'Sender account')
+    await deposit()
+    await printBalance(tornado._address, 'Tornado Pool ' + options.pool)
+    await printBalance(senderAccount, 'Sender account')
+  } else if (options.withdraw && /^0x[0-9a-fA-F]{124}$/.test(options.withdraw) && !options.deposit) {
+    const note = options.withdraw
+    if (options.to && /^0x[0-9a-fA-F]{40}$/.test(options.to)) {
+      await init()
+      await printBalance(tornado._address, 'Tornado Pool ' + options.pool)
+      await printBalance(options.to, 'Recipient account')
+      if (options.relay) {
+        await withdrawRelay(note, options.to, options.relay)
       } else {
-        printHelp(1)
+        await withdraw(note, options.to)
       }
-      break
-    case 'balance':
-      if (args.length === 2 && /^0x[0-9a-fA-F]{40}$/.test(args[1])) {
-        await init()
-        await printBalance(args[1])
-      } else {
-        printHelp(1)
-      }
-      break
-    case 'withdraw':
-      if (args.length >= 3 && args.length <= 4 && /^0x[0-9a-fA-F]{124}$/.test(args[1]) && /^0x[0-9a-fA-F]{40}$/.test(args[2])) {
-        await init()
-        await printBalance(tornado._address, 'Tornado')
-        await printBalance(args[2], 'Recipient account')
-        if (args[3]) {
-          await withdrawRelay(args[1], args[2], args[3])
-        } else {
-          await withdraw(args[1], args[2])
-        }
-        await printBalance(tornado._address, 'Tornado')
-        await printBalance(args[2], 'Recipient account')
-      } else {
-        printHelp(1)
-      }
-      break
-    case 'test':
-      if (args.length === 1) {
-        await init()
-        const note1 = await deposit()
-        await withdraw(note1, senderAccount)
-      } else {
-        printHelp(1)
-      }
-      break
-    case 'testRelay':
-      if (args.length === 1) {
-        await init()
-        const note1 = await deposit()
-        await withdrawRelay(note1, senderAccount, 'http://localhost:8000')
-      } else {
-        printHelp(1)
-      }
-      break
-
-    default:
+      await printBalance(tornado._address, 'Tornado Pool ' + options.pool)
+      await printBalance(options.to, 'Recipient account')
+    } else {
       printHelp(1)
     }
+  } else {
+    printHelp(1)
   }
 }
 
-if (inBrowser) {
-  window.deposit = deposit
-  window.withdraw = async () => {
-    const note = prompt('Enter the note to withdraw')
-    const recipient = (await web3.eth.getAccounts())[0]
-    await withdraw(note, recipient)
-  }
-  init()
-} else {
-  runConsole(process.argv.slice(2))
-    .then(() => process.exit(0))
-    .catch(err => { console.log(err); process.exit(1) })
-}
+runConsole(options)
+  .then(() => process.exit(0))
+  .catch(err => { console.log(err); process.exit(1) })
